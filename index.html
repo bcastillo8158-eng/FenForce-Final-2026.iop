@@ -8181,21 +8181,64 @@ body.ff-game-light-render #juego .game-shell{box-shadow:0 7px 18px rgba(26,76,45
     window.__FFGetBotAnswerV2=true;
   }
 
-  const previousSend=typeof window.sendChat==='function'?window.sendChat:null;
-  if(previousSend && !window.__FFSendChatV2){
-    window.sendChat=async function(){
-      const input=document.getElementById('chatInput');
-      const message=String(input?.value||'').trim();
-      if(!message) return previousSend.apply(this,arguments);
-      const answer=localEducationalAnswer(message);
-      if(answer===null) return previousSend.apply(this,arguments); // Preserve live weather lookup and existing contextual answers.
-      if(typeof window.addChat==='function') window.addChat(message,'user');
-      if(input) input.value='';
-      await new Promise(resolve=>setTimeout(resolve,180));
-      if(typeof window.addChat==='function') window.addChat(answer,'bot');
-    };
-    window.__FFSendChatV2=true;
-  }
+  
+const previousSend = typeof window.sendChat === 'function' ? window.sendChat : null;
+
+if (!window.__FFSendChatV2) {
+  window.sendChat = async function () {
+    const input = document.getElementById('chatInput');
+    const message = String(input?.value || '').trim();
+
+    if (!message) return;
+
+    // Mantener las consultas del clima con el sistema original.
+    const isWeather = /\b(clima|tiempo|temperatura|pronóstico|lluvia hoy|lloverá)\b/i.test(message);
+
+    if (isWeather && previousSend) {
+      return previousSend.apply(this, arguments);
+    }
+
+    if (typeof window.addChat !== 'function') {
+      return previousSend?.apply(this, arguments);
+    }
+
+    window.addChat(message, 'user');
+    input.value = '';
+
+    try {
+      const response = await fetch(
+        'https://fen-force-ai.bcastillo8158.workers.dev/',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ message })
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Error de conexión');
+      }
+
+      window.addChat(
+        data.response || 'No recibí una respuesta.',
+        'bot'
+      );
+
+    } catch (error) {
+      window.addChat(
+        'No pude conectarme con Fen Force AI. Inténtalo nuevamente.',
+        'bot'
+      );
+    }
+  };
+
+  window.__FFSendChatV2 = true;
+}
+
 
   function addAssistantTopics(){
     const host=document.querySelector('#asistente .chat-suggest');
